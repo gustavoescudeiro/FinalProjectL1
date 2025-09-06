@@ -1,0 +1,245 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Literal
+import numpy as np
+import pandas as pd
+
+
+
+@dataclass
+class SimulationResult:
+    portfolio_value: pd.Series       # valor total do portfólio ao longo do tempo
+    cash: pd.Series                  # caixa ao longo do tempo
+    positions: pd.DataFrame          # quantidade de cada ativo ao longo do tempo
+    trades: pd.DataFrame             # trades (quantidades) executados nas datas de rebalance
+    weights_realized: pd.DataFrame   # pesos realizados por data
+
+def _round_to_lot(qty: np.ndarray, lot: int, allow_fractional: bool) -> np.ndarray:
+    if allow_fractional:
+        return qty
+    lot = max(int(lot), 1)
+    return (np.floor(qty / lot) * lot).astype(float)
+
+def simulate_portfolio(
+    prices: pd.DataFrame,
+    weights: dict[str, float] | list[float] | np.ndarray | None = None,   # alvos percentuais
+    shares: dict[str, float] | list[float] | np.ndarray | None = None,    # alvos de quantidade
+    initial_investment: float = 10_000.0,
+    rebalance_freq: str | None = 'M',        # 'D','W','M','Q','A' ou None (buy-and-hold)
+    when: str = 'first',                     # 'first' ou 'last' (pregão do período para rebalance)
+    transaction_cost_bps: float = 0.0,       # custo por lado em bps (0.0001 = 1bp)
+    allow_fractional: bool = False,          # True permite fracionário
+    lot_size: int | dict[str, int] = 1,      # 1, 100, ou dict por ticker
+    cash_symbol: str = "CASH",               # label do cash
+    # >>> NOVOS PARÂMETROS PARA REMUNERAR O CAIXA <<<
+    rf_daily: pd.Series | None = None,       # série de retornos diários (ex.: CDI), alinhada por data
+    rf_timing: Literal["start","end"] = "start",  # aplica antes ("start") ou depois ("end") dos trades do dia
+    rf_apply_to_negative: bool = True        # se True, também aplica (cobra) quando caixa for negativo
+) -> SimulationResult:
+    """
+    Simula carteira com suporte a:
+      - Alocação por 'weights' (percentual do patrimônio)
+      - Alocação por 'shares' (quantidade de ativos)
+    Pode rebalancear por frequência ou fazer buy-and-hold.
+    Custos (bps) aplicados ao valor negociado em cada trade (por lado).
+
+    Remuneração do caixa:
+      - Passe 'rf_daily' como Série de retornos diários (decimal), indexada por data.
+      - 'rf_timing' define se o juro incide antes ('start') ou depois ('end') dos trades do dia.
+      - Se 'rf_apply_to_negative' for True, o mesmo retorno é aplicado quando o caixa for negativo
+        (simulando custo de carregamento); caso False, não incide sobre caixa negativo.
+
+    Regras:
+      - Informe exatamente um: 'weights' OU 'shares'.
+      - 'shares' com rebalance tenta manter as quantidades alvo nas datas de rebalance.
+      - Se faltar caixa, a compra é reduzida proporcionalmente (weights) ou por lote (shares).
+      - Arredondamento controlado por 'allow_fractional' e 'lot_size'.
+
+    'prices' deve ser DataFrame: índice datetime e colunas = tickers (preços).
+    """
+    if (weights is None) == (shares is None):
+        raise ValueError("Informe exatamente um: 'weights' OU 'shares'.")
+
+    # Índice de datas seguro
+    prices = prices.sort_index()
+    prices.index = pd.to_datetime(prices.index, errors="raise")
+    tickers = list(prices.columns)
+
+    # --- Alinhamento do risk-free diário (se fornecido) ---
+    if rf_daily is not None:
+        if not isinstance(rf_daily, pd.Series):
+            raise ValueError("rf_daily deve ser um pd.Series de retornos diários (decimal).")
+        rf_daily = rf_daily.copy()
+        rf_daily.index = pd.to_datetime(rf_daily.index, errors="raise")
+        # Alinhar ao índice de prices; onde não houver dado, assume 0
+        rf_daily = rf_daily.reindex(prices.index).fillna(0.0)
+
+    # Normalizar alvos
+    if weights is not None:
+        if isinstance(weights, dict):
+            w = np.array([weights.get(t, 0.0) for t in tickers], dtype=float)
+        else:
+            w = np.asarray(weights, dtype=float)
+            if w.size != len(tickers):
+                raise ValueError("weights deve ter mesmo comprimento das colunas de 'prices'.")
+        if (w < 0).any():
+            raise ValueError("weights não podem ser negativos.")
+        if w.sum() == 0:
+            raise ValueError("A soma dos weights é zero.")
+        w = w / w.sum()
+        mode = "weights"
+    else:
+        if isinstance(shares, dict):
+            s_target = np.array([shares.get(t, 0.0) for t in tickers], dtype=float)
+        else:
+            s_target = np.asarray(shares, dtype=float)
+            if s_target.size != len(tickers):
+                raise ValueError("shares deve ter mesmo comprimento das colunas de 'prices'.")
+        if (s_target < 0).any():
+            raise ValueError("shares não podem ser negativos.")
+        mode = "shares"
+
+    # Datas de rebalance
+    if rebalance_freq is None:
+        rebalance_dates = prices.index[[0]]
+    else:
+        if when == "first":
+            rb = prices.resample(rebalance_freq).first().index.intersection(prices.index)
+        else:
+            rb = prices.resample(rebalance_freq).last().index.intersection(prices.index)
+        rebalance_dates = rb.union(prices.index[:1]).sort_values()
+
+    # Estruturas
+    pos = pd.DataFrame(0.0, index=prices.index, columns=tickers)
+    cash = pd.Series(0.0, index=prices.index, name=cash_symbol)
+    trades = pd.DataFrame(0.0, index=prices.index, columns=tickers)
+    tc = float(transaction_cost_bps) / 10_000.0
+
+    # lot size por ticker
+    if isinstance(lot_size, dict):
+        lot_map = {t: int(max(1, lot_size.get(t, 1))) for t in tickers}
+    else:
+        lot_map = {t: int(max(1, lot_size)) for t in tickers}
+
+    # Auxiliares
+    def apply_rounding(target_qty: np.ndarray) -> np.ndarray:
+        out = target_qty.copy().astype(float)
+        if not allow_fractional:
+            for i, t in enumerate(tickers):
+                out[i] = _round_to_lot(out[i], lot_map[t], allow_fractional=False)
+        return out
+
+    def target_from_weights(t: pd.Timestamp, equity_value: float) -> np.ndarray:
+        px = prices.loc[t].values.astype(float)
+        target_value = equity_value * w
+        qty = target_value / np.clip(px, 1e-12, None)
+        return apply_rounding(qty)
+
+    def enforce_cash_constraint(px: np.ndarray, curr_qty: np.ndarray, desired_qty: np.ndarray, avail_cash: float) -> tuple[np.ndarray, float]:
+        delta = desired_qty - curr_qty
+        notional = (np.abs(delta) * px).sum()
+        total_cost = notional * tc
+        cash_after = avail_cash - (delta.clip(min=0) * px).sum() - total_cost + (delta.clip(max=0) * (-px)).sum()
+        if cash_after >= -1e-9:
+            return desired_qty, cash_after
+
+        if mode == "weights":
+            lo, hi = 0.0, 1.0
+            best_q, best_cash = curr_qty.copy(), avail_cash
+            for _ in range(32):
+                mid = 0.5 * (lo + hi)
+                q_try = curr_qty + (desired_qty - curr_qty) * mid
+                q_try = apply_rounding(q_try)
+                delta2 = q_try - curr_qty
+                notional2 = (np.abs(delta2) * px).sum()
+                total_cost2 = notional2 * tc
+                cash_after2 = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
+                if cash_after2 >= -1e-9:
+                    lo, best_q, best_cash = mid, q_try, cash_after2
+                else:
+                    hi = mid
+            return best_q, best_cash
+        else:
+            q_try = desired_qty.copy()
+            order = np.argsort(prices.loc[t].values)[::-1]  # corta primeiro os mais caros
+            for i in order:
+                if avail_cash <= 0:
+                    while q_try[i] > curr_qty[i]:
+                        step = lot_map[tickers[i]]
+                        q_try[i] = max(curr_qty[i], q_try[i] - step)
+                        delta2 = q_try - curr_qty
+                        notional2 = (np.abs(delta2) * px).sum()
+                        total_cost2 = notional2 * tc
+                        cash_after2 = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
+                        if cash_after2 >= -1e-9:
+                            return q_try, cash_after2
+                delta2 = q_try - curr_qty
+                notional2 = (np.abs(delta2) * px).sum()
+                total_cost2 = notional2 * tc
+                avail_cash = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
+                if avail_cash >= -1e-9:
+                    return q_try, avail_cash
+            return curr_qty.copy(), 0.0
+
+    # Inicialização
+    cash.iloc[0] = initial_investment
+    curr_qty = np.zeros(len(tickers), dtype=float)
+    rebalance_set = set(pd.to_datetime(rebalance_dates))
+    first_day = prices.index[0]
+
+    # Loop
+    for t in prices.index:
+        px = prices.loc[t].values.astype(float)
+
+        # ---- Remuneração do caixa (timing = start) ----
+        if rf_daily is not None and rf_timing == "start" and t != first_day:
+            r = float(rf_daily.loc[t])
+            c0 = cash.loc[t]
+            if (c0 >= 0) or rf_apply_to_negative:
+                cash.loc[t] = c0 * (1.0 + r)
+
+        # Rebanceamento nas datas-alvo
+        if t in rebalance_set:
+            if mode == "weights":
+                equity_now = cash.loc[t] + (curr_qty * px).sum()
+                desired_qty = target_from_weights(t, equity_now)
+            else:
+                desired_qty = apply_rounding(s_target.copy())
+
+            desired_qty, cash_after = enforce_cash_constraint(px, curr_qty, desired_qty, cash.loc[t])
+
+            delta = desired_qty - curr_qty
+            trades.loc[t] = delta
+            notional = (np.abs(delta) * px).sum()
+            fees = notional * tc
+
+            # Atualiza caixa após trades + custos
+            cash.loc[t] = cash.loc[t] - (delta.clip(min=0) * px).sum() - fees + (delta.clip(max=0) * (-px)).sum()
+            curr_qty = desired_qty
+
+        # ---- Remuneração do caixa (timing = end) ----
+        if rf_daily is not None and rf_timing == "end":
+            r = float(rf_daily.loc[t])
+            c0 = cash.loc[t]
+            if (c0 >= 0) or rf_apply_to_negative:
+                cash.loc[t] = c0 * (1.0 + r)
+
+        # Carregar posições/cash para a próxima linha
+        pos.loc[t] = curr_qty
+        if t != prices.index[-1]:
+            cash.iloc[cash.index.get_loc(t) + 1] = cash.loc[t]
+
+    # Saídas
+    portfolio_value = (pos * prices).sum(axis=1) + cash
+    weights_realized = (pos * prices).div(portfolio_value, axis=0).fillna(0.0)
+
+    return SimulationResult(
+        portfolio_value=portfolio_value,
+        cash=cash,
+        positions=pos,
+        trades=trades.replace(0.0, np.nan),
+        weights_realized=weights_realized
+    )
+
+
+
