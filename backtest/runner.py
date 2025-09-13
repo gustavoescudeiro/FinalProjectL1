@@ -2,8 +2,7 @@
 
 def run_strategy(strategy, precos, calendario, start_date=None, weights_window=None, initial_investment=100000, transaction_cost_bps=5, allow_fractional=False, lot_size=1):
     import pandas as pd
-    if start_date is not None:
-        calendario = calendario[calendario >= pd.to_datetime(start_date)]
+    # O calendário já é construído corretamente no script principal, não precisa filtrar aqui
     portfolio_value = pd.Series(dtype=float)
     cash = pd.Series(dtype=float)
     positions = pd.DataFrame(dtype=float)

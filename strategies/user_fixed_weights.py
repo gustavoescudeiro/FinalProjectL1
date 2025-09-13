@@ -1,54 +1,90 @@
-# Estratégia long only com seleção e pesos fixos definidos pelo usuário
 
-def user_universe_n(date, prices, ativos_usuario):
-    # Sempre retorna os n ativos definidos pelo usuário que estão disponíveis
-    return [a for a in ativos_usuario if a in prices.columns]
+from backtest.runner import run_strategy
+import yfinance as yf
+import pandas as pd
+from strategies.generic_strategy import GenericStrategy
+from pandas.tseries.offsets import BDay
 
-def user_weights_fixed(ativos, prices_window, date, pesos_dict):
+
+
+
+def weights_user_fixed(ativos, prices_window, date, pesos_dict):
     # Retorna os pesos fixos para os ativos do universo
-    total = sum(pesos_dict.get(a, 0.0) for a in ativos)
+    if not ativos:
+        return {}
+    # Garante que todos os ativos do universo recebam peso do dicionário (mesmo que zero)
+    pesos = {a: pesos_dict.get(a, 0.0) for a in ativos}
+    total = sum(pesos.values())
+    # Se todos os pesos são zero, retorna pesos iguais
     if total == 0:
-        return {a: 1/len(ativos) for a in ativos} if ativos else {}
-    return {a: pesos_dict.get(a, 0.0)/total for a in ativos}
+        return {a: 1/len(ativos) for a in ativos}
+    # Senão, normaliza os pesos
+    return {a: pesos[a]/total for a in ativos}
 
-class UserFixedStrategy:
+class GenericStrategyUserFixed(GenericStrategy):
     def __init__(self, ativos_usuario, pesos_dict):
-        self.ativos_usuario = ativos_usuario
+        super().__init__(ativos_usuario, self.weights_fn)
         self.pesos_dict = pesos_dict
 
-    def get_universe(self, date, prices):
-        return user_universe_n(date, prices, self.ativos_usuario)
+    def weights_fn(self, ativos, prices_window, date):
+        return weights_user_fixed(ativos, prices_window, date, self.pesos_dict)
 
-    def get_weights(self, ativos, prices_window, date):
-        return user_weights_fixed(ativos, prices_window, date, self.pesos_dict)
-
-# Exemplo de teste da estratégia UserFixedStrategy
 if __name__ == "__main__":
-    from backtest.runner import run_strategy
     import yfinance as yf
     import pandas as pd
+    from strategies.weights import weights_equal, weights_vol, weights_markowitz
+    from strategies.generic_strategy import GenericStrategy
+    from backtest.runner import run_strategy
 
     ativos_usuario = ["IMAB11.SA", "SPXI11.SA"]
-    pesos_dict = {"IMAB11.SA": 0.8, "SPXI11.SA": 0.2}
-    strategy = UserFixedStrategy(ativos_usuario, pesos_dict)
-
-    ini_date = '2025-05-16'
-    end_date = '2025-09-05'
+    ini_date = '2025-01-02'
+    end_date = '2025-09-10'
     initial_investment = 100000
     rebalance_freq = 'M'
-    transaction_cost_bps = 5
+    transaction_cost_bps = 0
     lot_size = 1
     allow_fractional = False
 
-    df_tickers = yf.download(ativos_usuario, start=ini_date, end=end_date)
+    ini_date_prices = pd.to_datetime(ini_date) - BDay(60)
+    df_tickers = yf.download(ativos_usuario, start=str(ini_date_prices.date()), end=end_date)
     precos = df_tickers['Close'].dropna()
-    calendario = precos.resample(rebalance_freq).first().index.intersection(precos.index)
-    calendario = calendario.insert(0, precos.index[0])
-    calendario = calendario.sort_values()
+    # Cria calendário de rebalanceamento
+    ini_date_dt = pd.to_datetime(ini_date)
+    if ini_date_dt not in precos.index:
+        raise ValueError(f"Não há preços para a data inicial {ini_date}")
+    calendario_rebal = precos.resample(rebalance_freq).first().index.intersection(precos.index)
+    calendario_rebal = calendario_rebal[calendario_rebal > ini_date_dt]
+    calendario = pd.Index([ini_date_dt]).append(calendario_rebal)
 
-    res = run_strategy(strategy, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    # Teste Equal Weighted
+    strategy_equal = GenericStrategy(ativos_usuario, weights_equal)
+    res_equal = run_strategy(strategy_equal, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    print('GenericStrategy - Equal Weighted:')
+    for k, v in res_equal.items():
+        print(f'--- {k} ---')
+        print(v)
 
-    print('User Fixed Strategy (80% IMAB11, 20% SPXI11):')
-    for k, v in res.items():
+    # Teste Vol Weighted
+    strategy_vol = GenericStrategy(ativos_usuario, weights_vol, weights_window=21)
+    res_vol = run_strategy(strategy_vol, precos, calendario, start_date=ini_date, weights_window=21, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    print('GenericStrategy - Vol Weighted:')
+    for k, v in res_vol.items():
+        print(f'--- {k} ---')
+        print(v)
+    #
+    # # Teste Markowitz Weighted
+    # strategy_markowitz = GenericStrategy(ativos_usuario, weights_markowitz, weights_window=42)
+    # res_markowitz = run_strategy(strategy_markowitz, precos, calendario, start_date=ini_date, weights_window=42, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    # print('GenericStrategy - Markowitz Weighted:')
+    # for k, v in res_markowitz.items():
+    #     print(f'--- {k} ---')
+    #     print(v)
+
+    # Teste User Fixed Weights
+    pesos_dict = {"IMAB11.SA": 0.8, "SPXI11.SA": 0.2}
+    strategy_user_fixed = GenericStrategyUserFixed(ativos_usuario, pesos_dict)
+    res_user_fixed = run_strategy(strategy_user_fixed, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    print('GenericStrategy - User Fixed Weights (IMAB11=80%, SPXI=20%):')
+    for k, v in res_user_fixed.items():
         print(f'--- {k} ---')
         print(v)
