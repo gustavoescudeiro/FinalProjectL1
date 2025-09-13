@@ -18,21 +18,21 @@ assets = ("IMAB11.SA", "SPXI11.SA")
 dict_strategies = OrderedDict()
 
 # ponto central
-dict_strategies["50_50"] = {assets[0]: 0.50, assets[1]: 0.50}
+dict_strategies["80_20"] = {assets[0]: 0.80, assets[1]: 0.2}
 
-# expandindo simetricamente a partir de 50 em passos de 5
-for p in range(55, 101, 1):   # 55, 60, ..., 100
-    q = 100 - p               # 45, 40, ..., 0
-    # lado "IMAB mais pesado"
-    dict_strategies[f"{p}_{q}"] = {
-        assets[0]: p/100,
-        assets[1]: q/100
-    }
-    # lado espelhado "SPXI mais pesado"
-    dict_strategies[f"{q}_{p}"] = {
-        assets[0]: q/100,
-        assets[1]: p/100
-    }
+# # expandindo simetricamente a partir de 50 em passos de 5
+# for p in range(55, 101, 1):   # 55, 60, ..., 100
+#     q = 100 - p               # 45, 40, ..., 0
+#     # lado "IMAB mais pesado"
+#     dict_strategies[f"{p}_{q}"] = {
+#         assets[0]: p/100,
+#         assets[1]: q/100
+#     }
+#     # lado espelhado "SPXI mais pesado"
+#     dict_strategies[f"{q}_{p}"] = {
+#         assets[0]: q/100,
+#         assets[1]: p/100
+#     }
 
 
 
@@ -69,7 +69,7 @@ for k, v in dict_strategies.items():
     res = simulate_portfolio(
         prices=portfolio_df,                       # DataFrame de preços (colunas = tickers)
         weights=weights,
-        initial_investment=10000,
+        initial_investment=100000,
         rebalance_freq="Q",
         when="first",
         transaction_cost_bps=5,               # 5 bps por lado
