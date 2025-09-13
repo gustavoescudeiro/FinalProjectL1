@@ -1,6 +1,6 @@
 # Função para rodar o backtest de uma estratégia
 
-def run_strategy(strategy, precos, calendario, start_date=None, weights_window=None, initial_investment=100000, transaction_cost_bps=5, allow_fractional=False, lot_size=1):
+def run_strategy(strategy, precos, calendario, start_date=None, weights_window=None, initial_investment=100000, transaction_cost_bps=5, allow_fractional=False, lot_size=1, rf_daily=None):
     import pandas as pd
     # O calendário já é construído corretamente no script principal, não precisa filtrar aqui
     portfolio_value = pd.Series(dtype=float)
@@ -30,7 +30,8 @@ def run_strategy(strategy, precos, calendario, start_date=None, weights_window=N
             rebalance_freq=None,
             transaction_cost_bps=transaction_cost_bps,
             allow_fractional=allow_fractional,
-            lot_size=lot_size
+            lot_size=lot_size,
+            rf_daily=rf_daily
         )
         portfolio_value = pd.concat([portfolio_value, res.portfolio_value])
         cash = pd.concat([cash, res.cash])

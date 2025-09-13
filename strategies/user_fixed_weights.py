@@ -4,7 +4,8 @@ import yfinance as yf
 import pandas as pd
 from strategies.generic_strategy import GenericStrategy
 from pandas.tseries.offsets import BDay
-
+import sgs
+from datetime import datetime
 
 
 
@@ -37,13 +38,17 @@ if __name__ == "__main__":
     from backtest.runner import run_strategy
 
     ativos_usuario = ["IMAB11.SA", "SPXI11.SA"]
-    ini_date = '2025-01-02'
-    end_date = '2025-09-10'
+    ini_date = '2022-09-12'
+    end_date = '2025-09-11'
     initial_investment = 100000
     rebalance_freq = 'M'
     transaction_cost_bps = 0
     lot_size = 1
     allow_fractional = False
+
+    # Getting CDI
+    df_cdi = sgs.dataframe(12, start=datetime.strptime(ini_date, "%Y-%m-%d").strftime("%d/%m/%Y"), end=datetime.strptime(end_date, "%Y-%m-%d").strftime("%d/%m/%Y"))
+    df_cdi[12] = df_cdi[12] / 100
 
     ini_date_prices = pd.to_datetime(ini_date) - BDay(60)
     df_tickers = yf.download(ativos_usuario, start=str(ini_date_prices.date()), end=end_date)
@@ -83,7 +88,7 @@ if __name__ == "__main__":
     # Teste User Fixed Weights
     pesos_dict = {"IMAB11.SA": 0.8, "SPXI11.SA": 0.2}
     strategy_user_fixed = GenericStrategyUserFixed(ativos_usuario, pesos_dict)
-    res_user_fixed = run_strategy(strategy_user_fixed, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    res_user_fixed = run_strategy(strategy_user_fixed, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size, rf_daily=df_cdi[12])
     print('GenericStrategy - User Fixed Weights (IMAB11=80%, SPXI=20%):')
     for k, v in res_user_fixed.items():
         print(f'--- {k} ---')
