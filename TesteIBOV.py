@@ -122,10 +122,9 @@ res = simulate_portfolio(
     weights=pesos_df,
     initial_investment=100000,
     rebalance_freq=None,
-    transaction_cost_bps=5,
+    transaction_cost_bps=0,
     allow_fractional=False,
-    lot_size=1,
-    rf_daily=df_cdi[12]
+    lot_size=1
 )
 
 # Analisa resultado
