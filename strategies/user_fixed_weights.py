@@ -61,29 +61,29 @@ if __name__ == "__main__":
     calendario_rebal = calendario_rebal[calendario_rebal > ini_date_dt]
     calendario = pd.Index([ini_date_dt]).append(calendario_rebal)
 
-    # Teste Equal Weighted
-    strategy_equal = GenericStrategy(ativos_usuario, weights_equal)
-    res_equal = run_strategy(strategy_equal, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
-    print('GenericStrategy - Equal Weighted:')
-    for k, v in res_equal.items():
-        print(f'--- {k} ---')
-        print(v)
-
-    # Teste Vol Weighted
-    strategy_vol = GenericStrategy(ativos_usuario, weights_vol, weights_window=21)
-    res_vol = run_strategy(strategy_vol, precos, calendario, start_date=ini_date, weights_window=21, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
-    print('GenericStrategy - Vol Weighted:')
-    for k, v in res_vol.items():
-        print(f'--- {k} ---')
-        print(v)
-    #
-    # # Teste Markowitz Weighted
-    # strategy_markowitz = GenericStrategy(ativos_usuario, weights_markowitz, weights_window=42)
-    # res_markowitz = run_strategy(strategy_markowitz, precos, calendario, start_date=ini_date, weights_window=42, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
-    # print('GenericStrategy - Markowitz Weighted:')
-    # for k, v in res_markowitz.items():
+    # # Teste Equal Weighted
+    # strategy_equal = GenericStrategy(ativos_usuario, weights_equal)
+    # res_equal = run_strategy(strategy_equal, precos, calendario, start_date=ini_date, weights_window=None, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    # print('GenericStrategy - Equal Weighted:')
+    # for k, v in res_equal.items():
     #     print(f'--- {k} ---')
     #     print(v)
+    #
+    # # Teste Vol Weighted
+    # strategy_vol = GenericStrategy(ativos_usuario, weights_vol, weights_window=21)
+    # res_vol = run_strategy(strategy_vol, precos, calendario, start_date=ini_date, weights_window=21, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    # print('GenericStrategy - Vol Weighted:')
+    # for k, v in res_vol.items():
+    #     print(f'--- {k} ---')
+    #     print(v)
+    # #
+    # # # Teste Markowitz Weighted
+    # # strategy_markowitz = GenericStrategy(ativos_usuario, weights_markowitz, weights_window=42)
+    # # res_markowitz = run_strategy(strategy_markowitz, precos, calendario, start_date=ini_date, weights_window=42, initial_investment=initial_investment, transaction_cost_bps=transaction_cost_bps, allow_fractional=allow_fractional, lot_size=lot_size)
+    # # print('GenericStrategy - Markowitz Weighted:')
+    # # for k, v in res_markowitz.items():
+    # #     print(f'--- {k} ---')
+    # #     print(v)
 
     # Teste User Fixed Weights
     pesos_dict = {"IMAB11.SA": 0.8, "SPXI11.SA": 0.2}

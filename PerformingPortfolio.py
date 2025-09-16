@@ -9,8 +9,8 @@ from collections import OrderedDict
 
 
 
-ini_date = '2025-05-16'
-end_date = '2025-09-05'
+ini_date = '2022-09-12'
+end_date = '2025-09-11'
 
 # Defining weights
 assets = ("IMAB11.SA", "SPXI11.SA")
@@ -58,11 +58,7 @@ for k, v in dict_strategies.items():
     weights = v
     # Getting tickers from dict
     lista_tickers = list(v.keys())
-    df_tickers = yf.download(lista_tickers,
-                          # period="1y",
-                          # interval="1d",
-                          start = ini_date,
-                          end = end_date)
+
 
     portfolio_df = df_tickers['Close'].copy()
 

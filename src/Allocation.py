@@ -76,18 +76,37 @@ def simulate_portfolio(
 
     # Normalizar alvos
     if weights is not None:
-        if isinstance(weights, dict):
+        if isinstance(weights, pd.DataFrame):
+            weights_df = weights.copy()
+            def get_w_for_date(dt):
+                if dt not in weights_df.index:
+                    return np.zeros(len(tickers))
+                row = weights_df.loc[dt]
+                arr = np.array([row.get(t, 0.0) for t in tickers], dtype=float)
+                if (arr < 0).any():
+                    raise ValueError("weights não podem ser negativos.")
+                if arr.sum() == 0:
+                    return arr  # tudo zero, sem alocação
+                return arr / arr.sum()
+            mode = "weights_df"
+        elif isinstance(weights, dict):
             w = np.array([weights.get(t, 0.0) for t in tickers], dtype=float)
+            if (w < 0).any():
+                raise ValueError("weights não podem ser negativos.")
+            if w.sum() == 0:
+                raise ValueError("A soma dos weights é zero.")
+            w = w / w.sum()
+            mode = "weights"
         else:
             w = np.asarray(weights, dtype=float)
             if w.size != len(tickers):
                 raise ValueError("weights deve ter mesmo comprimento das colunas de 'prices'.")
-        if (w < 0).any():
-            raise ValueError("weights não podem ser negativos.")
-        if w.sum() == 0:
-            raise ValueError("A soma dos weights é zero.")
-        w = w / w.sum()
-        mode = "weights"
+            if (w < 0).any():
+                raise ValueError("weights não podem ser negativos.")
+            if w.sum() == 0:
+                raise ValueError("A soma dos weights é zero.")
+            w = w / w.sum()
+            mode = "weights"
     else:
         if isinstance(shares, dict):
             s_target = np.array([shares.get(t, 0.0) for t in tickers], dtype=float)
@@ -100,7 +119,13 @@ def simulate_portfolio(
         mode = "shares"
 
     # Datas de rebalance
-    if rebalance_freq is None:
+    if isinstance(weights, pd.DataFrame):
+        rebalance_dates = [d for d in weights.index if (weights.loc[d] != 0).any()]
+        # Garante rebalance no primeiro dia, mesmo que não haja linha de pesos
+        first_day = prices.index[0]
+        if first_day not in rebalance_dates:
+            rebalance_dates = [first_day] + rebalance_dates
+    elif rebalance_freq is None:
         rebalance_dates = prices.index[[0]]
     else:
         if when == "first":
@@ -131,7 +156,13 @@ def simulate_portfolio(
 
     def target_from_weights(t: pd.Timestamp, equity_value: float) -> np.ndarray:
         px = prices.loc[t].values.astype(float)
-        target_value = equity_value * w
+        if mode == 'weights_df':
+            w_now = get_w_for_date(t)
+        else:
+            w_now = w
+        if w_now.sum() == 0:
+            return np.zeros(len(tickers))
+        target_value = equity_value * w_now
         qty = target_value / np.clip(px, 1e-12, None)
         return apply_rounding(qty)
 
@@ -200,7 +231,7 @@ def simulate_portfolio(
 
         # Rebanceamento nas datas-alvo
         if t in rebalance_set:
-            if mode == "weights":
+            if mode == "weights" or mode == "weights_df":
                 equity_now = cash.loc[t] + (curr_qty * px).sum()
                 desired_qty = target_from_weights(t, equity_now)
             else:
