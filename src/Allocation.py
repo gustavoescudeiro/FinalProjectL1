@@ -85,8 +85,7 @@ def simulate_portfolio(
                     return np.zeros(len(tickers))
                 row = weights_df.loc[dt]
                 arr = np.array([row.get(t, 0.0) for t in tickers], dtype=float)
-                if (arr < 0).any():
-                    raise ValueError("weights não podem ser negativos.")
+                # Permite pesos negativos (short)
                 s = arr.sum()
                 if s == 0:
                     return arr  # tudo zero, sem alocação
@@ -96,8 +95,7 @@ def simulate_portfolio(
             mode = "weights_df"
         elif isinstance(weights, dict):
             w = np.array([weights.get(t, 0.0) for t in tickers], dtype=float)
-            if (w < 0).any():
-                raise ValueError("weights não podem ser negativos.")
+            # Permite pesos negativos (short)
             s = w.sum()
             if s == 0:
                 raise ValueError("A soma dos weights é zero.")
@@ -109,8 +107,7 @@ def simulate_portfolio(
             w = np.asarray(weights, dtype=float)
             if w.size != len(tickers):
                 raise ValueError("weights deve ter mesmo comprimento das colunas de 'prices'.")
-            if (w < 0).any():
-                raise ValueError("weights não podem ser negativos.")
+            # Permite pesos negativos (short)
             s = w.sum()
             if s == 0:
                 raise ValueError("A soma dos weights é zero.")
