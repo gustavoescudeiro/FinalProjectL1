@@ -34,7 +34,9 @@ def simulate_portfolio(
     # >>> NOVOS PARÂMETROS PARA REMUNERAR O CAIXA <<<
     rf_daily: pd.Series | None = None,       # série de retornos diários (ex.: CDI), alinhada por data
     rf_timing: Literal["start","end"] = "start",  # aplica antes ("start") ou depois ("end") dos trades do dia
-    rf_apply_to_negative: bool = True        # se True, também aplica (cobra) quando caixa for negativo
+    rf_apply_to_negative: bool = True,        # se True, também aplica (cobra) quando caixa for negativo
+    leverage: float = 1.0,                    # alavancagem global (default 1.0)
+    financing_rate_daily: float | pd.Series | None = None  # custo diário de financiamento (juros sobre caixa negativo)
 ) -> SimulationResult:
     """
     Simula carteira com suporte a:
@@ -85,17 +87,23 @@ def simulate_portfolio(
                 arr = np.array([row.get(t, 0.0) for t in tickers], dtype=float)
                 if (arr < 0).any():
                     raise ValueError("weights não podem ser negativos.")
-                if arr.sum() == 0:
+                s = arr.sum()
+                if s == 0:
                     return arr  # tudo zero, sem alocação
-                return arr / arr.sum()
+                if s > 1.0 + 1e-8:
+                    raise ValueError(f"A soma dos weights ({s:.4f}) é maior que 1. Os pesos devem somar 1 ou menos.")
+                return arr / s
             mode = "weights_df"
         elif isinstance(weights, dict):
             w = np.array([weights.get(t, 0.0) for t in tickers], dtype=float)
             if (w < 0).any():
                 raise ValueError("weights não podem ser negativos.")
-            if w.sum() == 0:
+            s = w.sum()
+            if s == 0:
                 raise ValueError("A soma dos weights é zero.")
-            w = w / w.sum()
+            if s > 1.0 + 1e-8:
+                raise ValueError(f"A soma dos weights ({s:.4f}) é maior que 1. Os pesos devem somar 1 ou menos.")
+            w = w / s
             mode = "weights"
         else:
             w = np.asarray(weights, dtype=float)
@@ -103,9 +111,12 @@ def simulate_portfolio(
                 raise ValueError("weights deve ter mesmo comprimento das colunas de 'prices'.")
             if (w < 0).any():
                 raise ValueError("weights não podem ser negativos.")
-            if w.sum() == 0:
+            s = w.sum()
+            if s == 0:
                 raise ValueError("A soma dos weights é zero.")
-            w = w / w.sum()
+            if s > 1.0 + 1e-8:
+                raise ValueError(f"A soma dos weights ({s:.4f}) é maior que 1. Os pesos devem somar 1 ou menos.")
+            w = w / s
             mode = "weights"
     else:
         if isinstance(shares, dict):
@@ -154,7 +165,7 @@ def simulate_portfolio(
                 out[i] = _round_to_lot(out[i], lot_map[t], allow_fractional=False)
         return out
 
-    def target_from_weights(t: pd.Timestamp, equity_value: float) -> np.ndarray:
+    def target_from_weights(t: pd.Timestamp, equity_value: float, leverage_: float) -> np.ndarray:
         px = prices.loc[t].values.astype(float)
         if mode == 'weights_df':
             w_now = get_w_for_date(t)
@@ -162,7 +173,7 @@ def simulate_portfolio(
             w_now = w
         if w_now.sum() == 0:
             return np.zeros(len(tickers))
-        target_value = equity_value * w_now
+        target_value = equity_value * leverage_ * w_now
         qty = target_value / np.clip(px, 1e-12, None)
         return apply_rounding(qty)
 
@@ -171,46 +182,24 @@ def simulate_portfolio(
         notional = (np.abs(delta) * px).sum()
         total_cost = notional * tc
         cash_after = avail_cash - (delta.clip(min=0) * px).sum() - total_cost + (delta.clip(max=0) * (-px)).sum()
-        if cash_after >= -1e-9:
+        # Permite caixa negativo até o limite de margem (valor investido <= equity * leverage)
+        # Aqui, equity = caixa + valor dos ativos antes do rebalance
+        # valor investido = sum(abs(desired_qty) * px)
+        valor_ativos_antes = (curr_qty * px).sum()
+        equity = avail_cash + valor_ativos_antes
+        valor_investido = (desired_qty * px).sum()
+        max_investido = equity * leverage
+        if valor_investido <= max_investido + 1e-6:
             return desired_qty, cash_after
-
-        if mode == "weights":
-            lo, hi = 0.0, 1.0
-            best_q, best_cash = curr_qty.copy(), avail_cash
-            for _ in range(32):
-                mid = 0.5 * (lo + hi)
-                q_try = curr_qty + (desired_qty - curr_qty) * mid
-                q_try = apply_rounding(q_try)
-                delta2 = q_try - curr_qty
-                notional2 = (np.abs(delta2) * px).sum()
-                total_cost2 = notional2 * tc
-                cash_after2 = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
-                if cash_after2 >= -1e-9:
-                    lo, best_q, best_cash = mid, q_try, cash_after2
-                else:
-                    hi = mid
-            return best_q, best_cash
-        else:
-            q_try = desired_qty.copy()
-            order = np.argsort(prices.loc[t].values)[::-1]  # corta primeiro os mais caros
-            for i in order:
-                if avail_cash <= 0:
-                    while q_try[i] > curr_qty[i]:
-                        step = lot_map[tickers[i]]
-                        q_try[i] = max(curr_qty[i], q_try[i] - step)
-                        delta2 = q_try - curr_qty
-                        notional2 = (np.abs(delta2) * px).sum()
-                        total_cost2 = notional2 * tc
-                        cash_after2 = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
-                        if cash_after2 >= -1e-9:
-                            return q_try, cash_after2
-                delta2 = q_try - curr_qty
-                notional2 = (np.abs(delta2) * px).sum()
-                total_cost2 = notional2 * tc
-                avail_cash = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
-                if avail_cash >= -1e-9:
-                    return q_try, avail_cash
-            return curr_qty.copy(), 0.0
+        # Se exceder o limite de margem, reduz proporcionalmente
+        fator = max_investido / max(valor_investido, 1e-12)
+        q_adj = curr_qty + (desired_qty - curr_qty) * fator
+        q_adj = apply_rounding(q_adj)
+        delta2 = q_adj - curr_qty
+        notional2 = (np.abs(delta2) * px).sum()
+        total_cost2 = notional2 * tc
+        cash_after2 = avail_cash - (delta2.clip(min=0) * px).sum() - total_cost2 + (delta2.clip(max=0) * (-px)).sum()
+        return q_adj, cash_after2
 
     # Inicialização
     cash.iloc[0] = initial_investment
@@ -229,11 +218,19 @@ def simulate_portfolio(
             if (c0 >= 0) or rf_apply_to_negative:
                 cash.loc[t] = c0 * (1.0 + r)
 
+        # Custo de financiamento para caixa negativo (antes dos trades)
+        if financing_rate_daily is not None and cash.loc[t] < 0:
+            if isinstance(financing_rate_daily, pd.Series):
+                rate = float(financing_rate_daily.loc[t])
+            else:
+                rate = float(financing_rate_daily)
+            cash.loc[t] = cash.loc[t] * (1.0 + rate)
+
         # Rebanceamento nas datas-alvo
         if t in rebalance_set:
             if mode == "weights" or mode == "weights_df":
                 equity_now = cash.loc[t] + (curr_qty * px).sum()
-                desired_qty = target_from_weights(t, equity_now)
+                desired_qty = target_from_weights(t, equity_now, leverage)
             else:
                 desired_qty = apply_rounding(s_target.copy())
 
@@ -247,6 +244,14 @@ def simulate_portfolio(
             # Atualiza caixa após trades + custos
             cash.loc[t] = cash.loc[t] - (delta.clip(min=0) * px).sum() - fees + (delta.clip(max=0) * (-px)).sum()
             curr_qty = desired_qty
+
+        # Custo de financiamento para caixa negativo (após trades)
+        if financing_rate_daily is not None and cash.loc[t] < 0:
+            if isinstance(financing_rate_daily, pd.Series):
+                rate = float(financing_rate_daily.loc[t])
+            else:
+                rate = float(financing_rate_daily)
+            cash.loc[t] = cash.loc[t] * (1.0 + rate)
 
         # ---- Remuneração do caixa (timing = end) ----
         if rf_daily is not None and rf_timing == "end":
