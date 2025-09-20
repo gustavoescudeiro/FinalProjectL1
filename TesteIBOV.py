@@ -9,7 +9,7 @@ from datetime import datetime
 
 # Parâmetros de simulação
 ini_date = '2025-09-01'  # data de início da estratégia (primeiro rebalanceamento)
-end_date = '2025-09-15'
+end_date = '2025-09-19'
 
 pesos = {
     'ABEV3.SA': 0.024710,
