@@ -164,6 +164,8 @@ def simulate_portfolio(
 
     def target_from_weights(t: pd.Timestamp, equity_value: float, leverage_: float) -> np.ndarray:
         px = prices.loc[t].values.astype(float)
+        px = np.nan_to_num(px, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
+
         if mode == 'weights_df':
             w_now = get_w_for_date(t)
         else:
@@ -207,6 +209,7 @@ def simulate_portfolio(
     # Loop
     for t in prices.index:
         px = prices.loc[t].values.astype(float)
+        px = np.nan_to_num(px, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
 
         # ---- Remuneração do caixa (timing = start) ----
         if rf_daily is not None and rf_timing == "start" and t != first_day:
