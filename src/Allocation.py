@@ -13,6 +13,7 @@ class SimulationResult:
     positions: pd.DataFrame          # quantidade de cada ativo ao longo do tempo
     trades: pd.DataFrame             # trades (quantidades) executados nas datas de rebalance
     weights_realized: pd.DataFrame   # pesos realizados por data
+    assets_pnl: pd.DataFrame         # resultado financeiro de cada ativo por data
 
 def _round_to_lot(qty: np.ndarray, lot: int, allow_fractional: bool) -> np.ndarray:
     if allow_fractional:
@@ -269,12 +270,18 @@ def simulate_portfolio(
     portfolio_value = (pos * prices).sum(axis=1) + cash
     weights_realized = (pos * prices).div(portfolio_value, axis=0).fillna(0.0)
 
+    # Cálculo do P&L diário de cada ativo
+    pos_shift = pos.shift(1).fillna(0.0)
+    price_diff = prices.diff().fillna(0.0)
+    assets_pnl = pos_shift * price_diff
+
     return SimulationResult(
         portfolio_value=portfolio_value,
         cash=cash,
         positions=pos,
         trades=trades.replace(0.0, np.nan),
-        weights_realized=weights_realized
+        weights_realized=weights_realized,
+        assets_pnl=assets_pnl
     )
 
 
