@@ -16,8 +16,10 @@ ativos_universo = [
 benchmark = 'BOVA11.SA'
 
 # Baixa preços
-df_tickers = yf.download(ativos_universo + [benchmark], start=ini_date, end=end_date)
-precos = df_tickers['Close'].dropna(how='all')
+# df_tickers = yf.download(ativos_universo + [benchmark], start=ini_date, end=end_date)
+# precos = df_tickers['Close'].dropna(how='all')
+precos = pd.read_pickle('precos.pkl')
+
 
 # Simula betas (exemplo: rolling 60 dias contra BOVA11)
 retornos = precos.pct_change()
@@ -48,6 +50,7 @@ alavancagem_bab = 1.0  # 1.0 = 100% comprado e 100% vendido
 # Rebalance mensal: datas de rebalance são o último pregão de cada mês
 rebalance_dates = precos.resample('M').last().index.intersection(precos.index)
 rebalance_validas = []
+ativos_betas_selecionados = []
 ativos_low_dict = {}
 ativos_high_dict = {}
 for data in rebalance_dates:
@@ -71,6 +74,16 @@ for data in rebalance_dates:
     ativos_high = betas_ordenados.index[-n_q:].tolist()
     beta_low = betas_ordenados.iloc[:n_q].values
     beta_high = betas_ordenados.iloc[-n_q:].values
+    # Salva ativos e betas escolhidos para análise posterior
+    for a in ativos_low:
+        ativos_betas_selecionados.append({'data': data, 'grupo': 'low', 'ticker': a, 'beta': float(betas_ordenados[a])})
+    for a in ativos_high:
+        ativos_betas_selecionados.append({'data': data, 'grupo': 'high', 'ticker': a, 'beta': float(betas_ordenados[a])})
+    # Salva ativos e betas escolhidos para análise posterior
+    for a in ativos_low:
+        ativos_betas_selecionados.append({'data': data, 'grupo': 'low', 'ticker': a, 'beta': float(betas_ordenados[a])})
+    for a in ativos_high:
+        ativos_betas_selecionados.append({'data': data, 'grupo': 'high', 'ticker': a, 'beta': float(betas_ordenados[a])})
     pesos = {a: 0.0 for a in precos.columns if a != benchmark}
     nL = len(beta_low)
     nH = len(beta_high)
@@ -97,6 +110,10 @@ for data in rebalance_dates:
 if len(rebalance_validas) == 0:
     raise ValueError('Não há datas mensais com betas válidos suficientes para rebalance. Tente aumentar o período ou reduzir o window.')
 pesos_df = pd.DataFrame.from_dict(pesos_dict, orient='index').reindex(rebalance_validas).fillna(0.0)
+# DataFrame de ativos e betas escolhidos por data de rebalanceamento
+ativos_betas_df = pd.DataFrame(ativos_betas_selecionados)
+print('Ativos e betas escolhidos por data de rebalanceamento:')
+print(ativos_betas_df)
 # Normaliza pesos para soma dos absolutos = 1 em cada data
 pesos_df = pesos_df.div(pesos_df.abs().sum(axis=1), axis=0)
 # DataFrames de validação: pesos dos ativos escolhidos em cada decil
@@ -128,7 +145,8 @@ print('Ativos do maior decil (vendidos) por data:')
 print(df_high)
 
 # # CDI para custo de financiamento
-df_cdi = sgs.dataframe(12, start= datetime.strptime(ini_date, "%Y-%m-%d").strftime("%d/%m/%Y"), end= datetime.strptime(end_date, "%Y-%m-%d").strftime("%d/%m/%Y"))
+# df_cdi = sgs.dataframe(12, start= datetime.strptime(ini_date, "%Y-%m-%d").strftime("%d/%m/%Y"), end= datetime.strptime(end_date, "%Y-%m-%d").strftime("%d/%m/%Y"))
+df_cdi = pd.read_pickle('cdi.pkl')
 df_cdi[12] = df_cdi[12]/100 # deixando em porcentagem
 financing_spread = 0.01 / 252  # spread de 1% a.a. sobre CDI
 financing_rate = df_cdi[12] + financing_spread
