@@ -7,12 +7,12 @@ import sgs
 from datetime import datetime
 
 # Parâmetros
-ini_date = '2023-01-01'
+ini_date = '2015-01-01'
 end_date = '2025-01-01'
 ativos_universo = [
-    'ABEV3.SA','ALOS3.SA','ASAI3.SA','AURE3.SA','AZZA3.SA','B3SA3.SA','BBAS3.SA','BBDC3.SA','BBDC4.SA','BBSE3.SA','BEEF3.SA','BPAC11.SA','BRAP4.SA','BRAV3.SA','BRFS3.SA','BRKM5.SA','CEAB3.SA','CMIG4.SA','CMIN3.SA','COGN3.SA','CPFE3.SA','CPLE6.SA','CSAN3.SA','CSNA3.SA','CURY3.SA','CVCB3.SA','CXSE3.SA','CYRE3.SA','DIRR3.SA','EGIE3.SA','ELET3.SA','ELET6.SA','EMBR3.SA','ENEV3.SA','ENGI11.SA','EQTL3.SA','FLRY3.SA','GGBR4.SA','GOAU4.SA','HAPV3.SA','HYPE3.SA','IGTI11.SA','IRBR3.SA','ISAE4.SA','ITSA4.SA','ITUB4.SA','KLBN11.SA','LREN3.SA','MGLU3.SA','MOTV3.SA','MRFG3.SA','MRVE3.SA','MULT3.SA','NATU3.SA','PCAR3.SA','PETR3.SA','PETR4.SA','POMO4.SA','PRIO3.SA','PSSA3.SA','RADL3.SA','RAIL3.SA','RAIZ4.SA','RDOR3.SA','RECV3.SA','RENT3.SA','SANB11.SA','SBSP3.SA','SLCE3.SA','SMFT3.SA','STBP3.SA','SUZB3.SA','TAEE11.SA','TIMS3.SA','TOTS3.SA','UGPA3.SA','USIM5.SA','VALE3.SA','VAMO3.SA','VBBR3.SA','VIVA3.SA','VIVT3.SA','WEGE3.SA','YDUQ3.SA']
+    'ABEV3.SA','ALOS3.SA','ASAI3.SA','AURE3.SA','AZZA3.SA','B3SA3.SA','BBAS3.SA','BBDC3.SA','BBDC4.SA','BBSE3.SA','BEEF3.SA','BPAC11.SA','BRAP4.SA','BRAV3.SA','BRFS3.SA','BRKM5.SA','CEAB3.SA','CMIG4.SA','CMIN3.SA','COGN3.SA','CPFE3.SA','CPLE6.SA','CSAN3.SA','CSNA3.SA','CURY3.SA','CVCB3.SA','CXSE3.SA','CYRE3.SA','DIRR3.SA','EGIE3.SA','ELET3.SA','ELET6.SA','EMBR3.SA','ENEV3.SA','ENGI11.SA','EQTL3.SA','FLRY3.SA','GGBR4.SA','GOAU4.SA','HAPV3.SA','HYPE3.SA','IGTI11.SA','IRBR3.SA','ISAE4.SA','ITSA4.SA','ITUB4.SA','KLBN11.SA','LREN3.SA','MGLU3.SA','MOTV3.SA','MRFG3.SA','MRVE3.SA','MULT3.SA','NATU3.SA','PETR3.SA','PETR4.SA','POMO4.SA','PRIO3.SA','PSSA3.SA','RADL3.SA','RAIL3.SA','RAIZ4.SA','RDOR3.SA','RECV3.SA','RENT3.SA','SANB11.SA','SBSP3.SA','SLCE3.SA','SMFT3.SA','STBP3.SA','SUZB3.SA','TAEE11.SA','TIMS3.SA','TOTS3.SA','UGPA3.SA','USIM5.SA','VALE3.SA','VAMO3.SA','VBBR3.SA','VIVA3.SA','VIVT3.SA','WEGE3.SA','YDUQ3.SA']
 ativos_universo = [
-    'ABEV3.SA','ALOS3.SA','AMER3.SA','ASAI3.SA','AURE3.SA','AZUL4.SA','AZZA3.SA','B3SA3.SA','BBAS3.SA','BBDC3.SA','BBDC4.SA','BBSE3.SA','BEEF3.SA','BPAC11.SA','BRAP4.SA','BRFS3.SA','BRKM5.SA','BRML3.SA','CASH3.SA','CBAV3.SA','CCRO3.SA','CEAB3.SA','CESP6.SA','CMIG4.SA','CMIN3.SA','COGN3.SA','CPFE3.SA','CPLE6.SA','CRFB3.SA','CSAN3.SA','CSNA3.SA','CVCB3.SA','CYRE3.SA','DXCO3.SA','ECOR3.SA','EGIE3.SA','ELET3.SA','ELET6.SA','EMBR3.SA','ENEV3.SA','ENGI11.SA','EQTL3.SA','EZTC3.SA','FLRY3.SA','GGBR4.SA','GOAU4.SA','GOLL4.SA','HAPV3.SA','HYPE3.SA','IGTI11.SA','IRBR3.SA','ITSA4.SA','ITUB4.SA','JBSS3.SA','JHSF3.SA','KLBN11.SA','LREN3.SA','LWSA3.SA','MGLU3.SA','MRFG3.SA','MRVE3.SA','MULT3.SA','NATU3.SA','PCAR3.SA','PETR3.SA','PETR4.SA','PETZ3.SA','POMO4.SA','PRIO3.SA','PSSA3.SA','QUAL3.SA','RADL3.SA','RAIL3.SA','RAIZ4.SA','RDOR3.SA','RECV3.SA','RENT3.SA','RRRP3.SA','SANB11.SA','SBSP3.SA','SLCE3.SA','SMFT3.SA','SOMA3.SA','STBP3.SA','SUZB3.SA','TAEE11.SA','TIMS3.SA','TOTS3.SA','UGPA3.SA','USIM5.SA','VALE3.SA','VAMO3.SA','VBBR3.SA','VIVA3.SA','VIVT3.SA','WEGE3.SA','YDUQ3.SA']
+    'ABEV3.SA','ALOS3.SA','AMER3.SA','ASAI3.SA','AURE3.SA','AZUL4.SA','AZZA3.SA','B3SA3.SA','BBAS3.SA','BBDC3.SA','BBDC4.SA','BBSE3.SA','BEEF3.SA','BPAC11.SA','BRAP4.SA','BRFS3.SA','BRKM5.SA','BRML3.SA','CASH3.SA','CBAV3.SA','CCRO3.SA','CEAB3.SA','CESP6.SA','CMIG4.SA','CMIN3.SA','COGN3.SA','CPFE3.SA','CPLE6.SA','CRFB3.SA','CSAN3.SA','CSNA3.SA','CVCB3.SA','CYRE3.SA','DXCO3.SA','ECOR3.SA','EGIE3.SA','ELET3.SA','ELET6.SA','EMBR3.SA','ENEV3.SA','ENGI11.SA','EQTL3.SA','EZTC3.SA','FLRY3.SA','GGBR4.SA','GOAU4.SA','GOLL4.SA','HAPV3.SA','HYPE3.SA','IGTI11.SA','IRBR3.SA','ITSA4.SA','ITUB4.SA','JBSS3.SA','JHSF3.SA','KLBN11.SA','LREN3.SA','LWSA3.SA','MGLU3.SA','MRFG3.SA','MRVE3.SA','MULT3.SA','NATU3.SA','PETR3.SA','PETR4.SA','PETZ3.SA','POMO4.SA','PRIO3.SA','PSSA3.SA','QUAL3.SA','RADL3.SA','RAIL3.SA','RAIZ4.SA','RDOR3.SA','RECV3.SA','RENT3.SA','RRRP3.SA','SANB11.SA','SBSP3.SA','SLCE3.SA','SMFT3.SA','SOMA3.SA','STBP3.SA','SUZB3.SA','TAEE11.SA','TIMS3.SA','TOTS3.SA','UGPA3.SA','USIM5.SA','VALE3.SA','VAMO3.SA','VBBR3.SA','VIVA3.SA','VIVT3.SA','WEGE3.SA','YDUQ3.SA']
 benchmark = 'BOVA11.SA'
 
 # Baixa preços
@@ -54,7 +54,7 @@ for data in rebalance_dates:
     if data not in betas_df.index:
         continue
     betas_hoje = betas_df.loc[data].dropna().drop(benchmark, errors='ignore')
-    quantil = 0.1
+    quantil = 0.3
     n_total = len(betas_hoje)
     n_q = max(1, int(n_total * quantil))
     if n_total < 2 * n_q:
@@ -167,7 +167,7 @@ print('Maior alavancagem (valor investido / equity):', ((res.positions * precos_
 df_comparacao = pd.concat([res.portfolio_value,precos['BOVA11.SA']],axis=1)
 df_comparacao = df_comparacao.dropna()
 df_comparacao['retorno_portfolio'] = df_comparacao[0].pct_change()   # retornos simples
-df_comparacao['ret_portoflio_acumulado'] = (1 + df_comparacao['retorno_portfolio']).cumprod() - 1
+df_comparacao['cota_portfolio_acum'] = (1 + df_comparacao['retorno_portfolio']).cumprod()
 df_comparacao['retorno_mercado'] = df_comparacao['BOVA11.SA'].pct_change()   # retornos simples
-df_comparacao['retorno_mercado_acumulado'] = (1 + df_comparacao['retorno_mercado']).cumprod() - 1
+df_comparacao['cota_mercado_acum'] = (1 + df_comparacao['retorno_mercado']).cumprod()
 print('a')
