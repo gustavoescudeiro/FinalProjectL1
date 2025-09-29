@@ -129,6 +129,30 @@ def strategy_stats(data: pd.DataFrame | pd.Series,
                 except KeyError:
                     month_result = None  # não encontrado
 
+    # --- Métricas ANUAIS ---
+    # Retorno simples por ano
+    if input_is_return:
+        ret_y = (1 + r).resample("A").prod().sub(1).dropna()
+    else:
+        ret_y = s.resample("A").last().pct_change().dropna()
+    # Retorno acumulado ano a ano
+    acum_y = (1 + ret_y).cumprod() - 1
+    # Volatilidade anual por ano
+    g_r_y = r.groupby(pd.Grouper(freq="A"))
+    vol_ann_year = g_r_y.std(ddof=ddof) * np.sqrt(periods_per_year)
+    # Sharpe anual por ano
+    g_excess_y = excess.groupby(pd.Grouper(freq="A"))
+    mu_ex_y = g_excess_y.mean()
+    sd_ex_y = g_excess_y.std(ddof=ddof)
+    sharpe_ann_year = np.sqrt(periods_per_year) * (mu_ex_y / sd_ex_y)
+    sharpe_ann_year = sharpe_ann_year.replace([np.inf, -np.inf], np.nan)
+    annual_metrics = pd.DataFrame({
+        "retorno_anual": ret_y,
+        "retorno_acumulado_ano": acum_y,
+        "vol_anualizada_ano": vol_ann_year.reindex(ret_y.index),
+        "sharpe_anualizado_ano": sharpe_ann_year.reindex(ret_y.index)
+    })
+
     return {
         "total_return": total_return,
         "annualized_return": ann_return,
@@ -136,5 +160,6 @@ def strategy_stats(data: pd.DataFrame | pd.Series,
         "sharpe_ratio": sharpe,
         "monthly_returns": ret_m,
         "monthly_metrics": monthly_metrics,
+        "annual_metrics": annual_metrics,
         "month_result": month_result
     }
