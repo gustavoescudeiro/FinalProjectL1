@@ -83,10 +83,24 @@ def simulate_portfolio(
     if weights is not None:
         if isinstance(weights, pd.DataFrame):
             weights_df = weights.copy()
+            # ----------------------------------------------------------------------
+            # AJUSTE: usar último peso disponível (forward-fill lógico) caso
+            # a data de rebalance (ex: disparada por vencimento) não exista
+            # explicitamente em weights_df. Antes retornava zeros e todo valor
+            # ia para caixa. Agora redistribui entre ativos remanescentes.
+            # ----------------------------------------------------------------------
+            w_index = pd.to_datetime(weights_df.index)
+            weights_df.index = w_index
             def get_w_for_date(dt):
                 if dt not in weights_df.index:
-                    return np.zeros(len(tickers))
-                row = weights_df.loc[dt]
+                    # Busca última data anterior
+                    prev_mask = weights_df.index[weights_df.index <= dt]
+                    if len(prev_mask) == 0:
+                        return np.zeros(len(tickers))
+                    last_dt = weights_df.index[prev_mask][-1]
+                    row = weights_df.loc[last_dt]
+                else:
+                    row = weights_df.loc[dt]
                 arr = np.array([row.get(t, 0.0) for t in tickers], dtype=float)
                 # Permite pesos negativos (short)
                 s = arr.sum()
@@ -94,6 +108,8 @@ def simulate_portfolio(
                     return arr  # tudo zero, sem alocação
                 if s > 1.0 + 1e-8:
                     raise ValueError(f"A soma dos weights ({s:.4f}) é maior que 1. Os pesos devem somar 1 ou menos.")
+                if s <= 0:
+                    return arr
                 return arr / s
             mode = "weights_df"
         elif isinstance(weights, dict):
