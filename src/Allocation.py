@@ -38,7 +38,8 @@ def simulate_portfolio(
     rf_apply_to_negative: bool = True,        # se True, também aplica (cobra) quando caixa for negativo
     leverage: float = 1.0,                    # alavancagem global (default 1.0)
     financing_rate_daily: float | pd.Series | None = None,  # custo diário de financiamento (juros sobre caixa negativo)
-    maturities: dict[str, str] | pd.DataFrame | None = None  # datas de vencimento dos ativos (dict: ticker -> str ou DataFrame: colunas 'ticker', 'maturity')
+    maturities: dict[str, str] | pd.DataFrame | None = None,  # datas de vencimento dos ativos (dict: ticker -> str ou DataFrame: colunas 'ticker', 'maturity')
+    maturity_action: str = 'cash'  # 'cash' (venda vira caixa) ou 'rebalance' (venda + rebalanceamento imediato)
 ) -> SimulationResult:
     """
     Simula carteira com suporte a:
@@ -215,6 +216,7 @@ def simulate_portfolio(
         px = np.nan_to_num(px, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
 
         # --- VENDA AUTOMÁTICA DE ATIVOS VENCIDOS ---
+        rebalance_now = False
         if maturities is not None:
             if isinstance(maturities, dict):
                 venc_dict = maturities
@@ -231,6 +233,8 @@ def simulate_portfolio(
                         cash.loc[t] += valor_venda
                         trades.loc[t, ticker] = -curr_qty[i]
                         curr_qty[i] = 0
+                        if maturity_action == 'rebalance':
+                            rebalance_now = True
 
         # ---- Remuneração do caixa (timing = start) ----
         if rf_daily is not None and rf_timing == "start" and t != first_day:
@@ -247,8 +251,8 @@ def simulate_portfolio(
                 rate = float(financing_rate_daily)
             cash.loc[t] = cash.loc[t] * (1.0 + rate)
 
-        # Rebanceamento nas datas-alvo
-        if t in rebalance_set:
+        # Rebanceamento nas datas-alvo ou na data de vencimento se maturity_action == 'rebalance'
+        if t in rebalance_set or rebalance_now:
             if mode == "weights" or mode == "weights_df":
                 equity_now = cash.loc[t] + (curr_qty * px).sum()
                 desired_qty = target_from_weights(t, equity_now, leverage)
