@@ -84,8 +84,8 @@ def simulate_portfolio(
         if isinstance(weights, pd.DataFrame):
             weights_df = weights.copy()
             def get_w_for_date(dt):
+                # Se a data não existe explicitamente, busca o último peso anterior (forward-fill lógico)
                 if dt not in weights_df.index:
-                    # procura última data anterior
                     prev_mask = weights_df.index[weights_df.index <= dt]
                     if len(prev_mask) == 0:
                         return np.zeros(len(tickers))
@@ -102,7 +102,7 @@ def simulate_portfolio(
                     raise ValueError(f"A soma dos weights ({s:.4f}) é maior que 1. Os pesos devem somar 1 ou menos.")
                 if s <= 0:
                     return arr
-                return arr / s
+                return arr / s  # normaliza para somar 1
                 return arr / s
             mode = "weights_df"
         elif isinstance(weights, dict):
