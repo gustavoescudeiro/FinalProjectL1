@@ -86,8 +86,8 @@ def simulate_portfolio(
             def get_w_for_date(dt):
                 # Se a data não existe explicitamente, busca o último peso anterior (forward-fill lógico)
                 if dt not in weights_df.index:
-                    prev_mask = weights_df.index[weights_df.index <= dt]
-                    if len(prev_mask) == 0:
+                    prev_mask = weights_df.index <= dt
+                    if not prev_mask.any():
                         return np.zeros(len(tickers))
                     last_dt = weights_df.index[prev_mask][-1]
                     row = weights_df.loc[last_dt]
