@@ -253,11 +253,42 @@ def simulate_portfolio(
 
         # Rebanceamento nas datas-alvo ou na data de vencimento se maturity_action == 'rebalance'
         if t in rebalance_set or rebalance_now:
+            # Identifica ativos válidos (não vencidos)
+            ativos_validos = np.ones(len(tickers), dtype=bool)
+            if maturities is not None:
+                if isinstance(maturities, dict):
+                    venc_dict = maturities
+                elif isinstance(maturities, pd.DataFrame):
+                    venc_dict = dict(zip(maturities['ticker'], maturities['maturity']))
+                else:
+                    venc_dict = {}
+                for i, ticker in enumerate(tickers):
+                    if ticker in venc_dict:
+                        data_venc = pd.to_datetime(venc_dict[ticker])
+                        if pd.to_datetime(t) >= data_venc:
+                            ativos_validos[i] = False
+
+            # Calcula pesos/quantidades apenas para ativos válidos
             if mode == "weights" or mode == "weights_df":
                 equity_now = cash.loc[t] + (curr_qty * px).sum()
-                desired_qty = target_from_weights(t, equity_now, leverage)
+                if mode == "weights_df":
+                    w_now = get_w_for_date(t)
+                else:
+                    w_now = w
+                # Zera pesos dos ativos vencidos
+                w_valid = w_now * ativos_validos
+                s = w_valid.sum()
+                if s > 0:
+                    w_valid = w_valid / s
+                desired_qty = np.zeros(len(tickers))
+                target_value = equity_now * leverage * w_valid
+                desired_qty[ativos_validos] = target_value[ativos_validos] / np.clip(px[ativos_validos], 1e-12, None)
+                desired_qty = apply_rounding(desired_qty)
             else:
-                desired_qty = apply_rounding(s_target.copy())
+                # shares: zera alvos dos vencidos
+                s_target_valid = s_target.copy()
+                s_target_valid[~ativos_validos] = 0.0
+                desired_qty = apply_rounding(s_target_valid)
 
             desired_qty, cash_after = enforce_cash_constraint(px, curr_qty, desired_qty, cash.loc[t])
 
