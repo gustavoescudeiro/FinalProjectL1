@@ -37,7 +37,8 @@ def simulate_portfolio(
     rf_timing: Literal["start","end"] = "start",  # aplica antes ("start") ou depois ("end") dos trades do dia
     rf_apply_to_negative: bool = True,        # se True, também aplica (cobra) quando caixa for negativo
     leverage: float = 1.0,                    # alavancagem global (default 1.0)
-    financing_rate_daily: float | pd.Series | None = None  # custo diário de financiamento (juros sobre caixa negativo)
+    financing_rate_daily: float | pd.Series | None = None,  # custo diário de financiamento (juros sobre caixa negativo)
+    maturities: dict[str, str] | pd.DataFrame | None = None  # datas de vencimento dos ativos (dict: ticker -> str ou DataFrame: colunas 'ticker', 'maturity')
 ) -> SimulationResult:
     """
     Simula carteira com suporte a:
@@ -208,9 +209,28 @@ def simulate_portfolio(
     first_day = prices.index[0]
 
     # Loop
+
     for t in prices.index:
         px = prices.loc[t].values.astype(float)
         px = np.nan_to_num(px, nan=0.0, posinf=0.0, neginf=0.0, copy=False)
+
+        # --- VENDA AUTOMÁTICA DE ATIVOS VENCIDOS ---
+        if maturities is not None:
+            if isinstance(maturities, dict):
+                venc_dict = maturities
+            elif isinstance(maturities, pd.DataFrame):
+                venc_dict = dict(zip(maturities['ticker'], maturities['maturity']))
+            else:
+                venc_dict = {}
+            for i, ticker in enumerate(tickers):
+                if ticker in venc_dict:
+                    data_venc = pd.to_datetime(venc_dict[ticker])
+                    if pd.to_datetime(t) >= data_venc and curr_qty[i] != 0:
+                        # Vende o ativo vencido ao preço do dia
+                        valor_venda = curr_qty[i] * px[i]
+                        cash.loc[t] += valor_venda
+                        trades.loc[t, ticker] = -curr_qty[i]
+                        curr_qty[i] = 0
 
         # ---- Remuneração do caixa (timing = start) ----
         if rf_daily is not None and rf_timing == "start" and t != first_day:
